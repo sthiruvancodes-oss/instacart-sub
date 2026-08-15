@@ -1,5 +1,5 @@
-Instacart Substitution Spotlight — features + LinkedIn notes
-============================================================
+Instacart Substitution Spotlight — features
+==========================================
 
 Unofficial personal project. Not affiliated with, endorsed by, or built with
 Instacart. Chrome extension (Manifest V3), vanilla JS, no bundler, no backend.
@@ -29,8 +29,8 @@ Features
 - Works on instacart.com and instacart.ca cart drawers.
 - One permission: storage. No network calls, no analytics, no account.
 
-Engineering (the part worth posting)
-------------------------------------
+Engineering
+-----------
 The UI is small. The hard part is automating a production React SPA you do
 not control.
 
@@ -49,32 +49,3 @@ not control.
 - A MutationObserver re-scans the SPA. Scanning pauses while Instacart's
   preference modal is open so injecting badges does not reset their React
   tree (that bug blocked switching Tide / Heinz back to best match).
-
-LinkedIn screenshot checklist
------------------------------
-- Blur or crop any address, postal code, phone number, or full name.
-- The project is a private repo. Do not paste a public GitHub link unless
-  you intentionally make it public.
-- Say it is unofficial and not affiliated with Instacart.
-
-Possible post angle
--------------------
-I kept getting groceries I didn't order.
-
-Instacart defaults many cart items to "Replace with best match." If your
-item is out of stock, the shopper picks something similar. Reasonable for
-paper towels. A problem if you have allergies, a diet, or a brand you
-need.
-
-So I built a Chrome extension that:
-
-- flags every cart item silently set to auto-substitute (yellow / green / blue)
-- shows a running count
-- lets you change Instacart's real setting in one click from the badge
-
-The interesting part wasn't the UI. It was making it work against a
-production React app I don't control: hashed CSS, a cart drawer that
-treats outside clicks as "close," submit buttons that dismiss the sidebar,
-and copy that changed out from under the selectors.
-
-Vanilla JS, Manifest V3, one permission (storage), no backend.

@@ -21,14 +21,10 @@ changing it takes several clicks per item.
 
 ## What this does
 
-- **Flags exposure.** Every cart item on auto "best match" gets a badge.
-- **Counts it.** A floating panel shows how many items are affected.
-- **Fixes it in place.** Clicking the badge opens a popover that drives
-  Instacart's own substitution dialog — so the real setting changes and
-  persists, rather than a cosmetic UI change that vanishes on reload.
-- **Captures what the platform can't.** For "get this specific item instead,"
-  there is no public API, so the extension stores a local reminder and says so
-  explicitly in the UI.
+- **Flags** cart items on auto "best match".
+- **Counts** how many are still on that setting.
+- **Changes the real setting** from the badge (Instacart's own dialog + Save).
+- **Local notes** for a personal reminder. Not sent to the shopper.
 
 No network calls. No analytics. One permission (`storage`) for local notes.
 
@@ -36,8 +32,7 @@ No network calls. No analytics. One permission (`storage`) for local notes.
 
 ## Engineering notes
 
-The hard part isn't the UI — it's automating a production React SPA you don't
-control.
+The UI is small. The work is driving a production React cart you don't control.
 
 **Class names are unusable.** Instacart's styles are CSS-in-JS with hashed
 names (`e-1wuip3z`) that change every deploy. Nothing is selected by class.
@@ -61,7 +56,7 @@ Instacart's radios, so interaction replays a full pointer sequence
 (`pointerdown` → `mousedown` → `pointerup` → `mouseup` → `click`) and verifies
 the option looks selected before continuing.
 
-### Four bugs worth writing down
+### Bugs we hit
 
 | Symptom | Root cause |
 | --- | --- |
@@ -110,8 +105,8 @@ Open DevTools → Console and look for `[SubSpotlight]` output:
 [SubSpotlight] Cart row confirmed leave-best-match after Save
 ```
 
-Logging is intentionally verbose: because the selectors depend on Instacart's
-copy, the console is the fastest way to tell a UI change from a real bug.
+Console logs use `[SubSpotlight]`. Selectors depend on Instacart's copy, so
+that's the fastest way to tell a UI change from a real bug.
 
 ---
 

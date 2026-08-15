@@ -1,23 +1,7 @@
 /**
- * Instacart Substitution Spotlight — content script
- *
- * Existing behavior: flag cart items whose substitution setting is
- * "Replace with best match", show a badge + floating counter.
- *
- * New (v1.1): clicking OUR badge opens a small popover so the customer
- * can try to change the real Instacart setting, or leave a local-only
- * personal note when Instacart has no equivalent control to hook into.
- *
- * VERIFY IN DEVTOOLS (assumptions marked with "ASSUMPTION:"):
- * - Cart items are [role="group"][aria-label="<product name>"].
- * - The substitution control is a <button> whose text includes
- *   "best match" (or similar — see SUB_BUTTON_PATTERNS).
- * - VERIFIED (instacart.ca, 2026-07): clicking that button opens a
- *   dialog/modal titled like "If out of stock..." with radio options:
- *     • "Replace with specific item"  (+ product carousel)
- *     • "Replace with best match"
- *     • "Refund this item"
- *   We do not hardcode Instacart's CSS-in-JS class hashes.
+ * Content script: badge cart substitution settings and drive Instacart's
+ * own Replacement preference UI. Selectors use roles + visible copy —
+ * Instacart's CSS hashes change every deploy.
  */
 (function () {
   'use strict';
@@ -38,11 +22,7 @@
   /** chrome.storage.local key for personal backup notes (not sent to Instacart). */
   const NOTES_STORAGE_KEY = 'subSpotlightNotes';
 
-  /**
-   * ASSUMPTION: Instacart's substitution trigger button text includes one
-   * of these substrings (case-insensitive). Expand if you see different
-   * wording in your locale / A/B test.
-   */
+  /** Cart-row copy for the best-match / similar-item setting. */
   const SUB_BUTTON_PATTERNS = [
     'best match',
     'replace with best',
@@ -56,12 +36,7 @@
     'similar item',
   ];
 
-  /**
-   * Text patterns for the native refund / no-sub option inside Instacart's
-   * substitution dialog. Ordered most-specific first.
-   * VERIFIED (2026-08 instacart.ca): "Refund, don't replace"
-   * Older copy: "Refund this item"
-   */
+  /** Refund option copy (older dialogs said "Refund this item"). */
   const DONT_REPLACE_PATTERNS = [
     "refund, don't replace",
     'refund, dont replace',
@@ -75,25 +50,20 @@
     'no replacements',
   ];
 
-  /** Phrases used to find the visible refund radio in the live modal. */
+  /** Refund radio labels in the preference modal. */
   const REFUND_OPTION_PHRASES = [
     "refund, don't replace",
     'refund, dont replace',
     'refund this item',
   ];
 
-  /** Fingerprints of Instacart's substitution modal (title changed across deploys). */
+  /** Preference modal titles. */
   const SUB_MODAL_TITLE_PHRASES = [
     'replacement preference',
     'if out of stock',
   ];
 
-  /**
-   * Patterns for Instacart's "pick a specific replacement" radio.
-   * VERIFIED label on instacart.ca: "Replace with specific item"
-   * Prefer the full phrase so we don't accidentally match carousel
-   * product tiles that merely contain the word "specific".
-   */
+  /** Specific-replacement option copy. Prefer the full phrase over "specific". */
   const SPECIFIC_REPLACEMENT_PATTERNS = [
     'replace with specific item',
     'replacement chosen',
@@ -106,19 +76,19 @@
     'find a replacement',
   ];
 
-  // In-memory cache of notes; hydrated from chrome.storage.local on load.
+  // Local notes cache (chrome.storage.local).
   let notesByProduct = {};
 
-  /** Serialize Instacart modal automation — overlapping runs caused milk→pepper click-through. */
+  /** One Instacart modal interaction at a time. */
   let interactionChain = Promise.resolve();
   let interactionGen = 0;
   let ignoreProgrammaticInput = false;
-  /** Cart item the open popover belongs to (re-resolved by product name if the row re-renders). */
+  /** Cart row the open popover belongs to. */
   let activePopoverItem = null;
   let activePopoverProduct = '';
 
   // ---------------------------------------------------------------------------
-  // Logging helpers — leave these on so you can verify probe results live
+  // Logging
   // ---------------------------------------------------------------------------
 
   function log(...args) {
@@ -130,20 +100,15 @@
   }
 
   // ---------------------------------------------------------------------------
-  // DOM helpers (stable selectors only — no CSS-in-JS class hashes)
+  // DOM helpers
   // ---------------------------------------------------------------------------
 
   /**
-   * Finds Instacart's substitution-setting button inside one cart item.
-   * Prefer text content over class names.
-   *
-   * IMPORTANT: Our own badge is also a <button> whose label includes
-   * "best match". Always skip extension UI or a successful refund leaves
-   * the badge in place and the next run "clicks" our badge instead of
-   * Instacart's control (this is what looked like "stuck on the milk").
+   * Instacart's substitution button in one cart row.
+   * Skip our own badges — they also contain "best match".
    */
   function findSubButton(item) {
-    // Prefer submit buttons (verified in your DevTools notes), then any button.
+    // Prefer submit buttons, then any button.
     const candidates = [
       ...item.querySelectorAll('button[type="submit"]'),
       ...item.querySelectorAll('button'),
@@ -153,8 +118,7 @@
       if (seen.has(b)) continue;
       seen.add(b);
       if (isOurUi(b)) continue;
-      // Preference modal is nested in the cart item — do not treat its
-      // "Replace with best match" copy as the cart-row control.
+      // Modal options are nested in the row; don't treat those as the cart control.
       if (b.closest('[role="radiogroup"]')) continue;
       if (b.closest('[data-testid="row-base"]')) continue;
       const text = (b.textContent || '').trim().toLowerCase();
@@ -204,11 +168,7 @@
     return !!t && SUB_BUTTON_PATTERNS.some((p) => t.includes(p));
   }
 
-  /**
-   * Cart-row substitution control (best match, refund, or specific).
-   * Do not treat random product-card buttons as a setting — that painted
-   * "Specific replacement" all over search results.
-   */
+  /** Cart-row setting control. Ignore search-result product cards. */
   function findCartRowSubControl(item) {
     if (!item) return null;
     const candidates = settingControlCandidates(item);
@@ -311,7 +271,7 @@
     return inc && dec;
   }
 
-  /** Skip nested product groups (replacement thumbnail, search cards, etc.). */
+  /** Skip nested product groups (replacement thumbnail, etc.). */
   function isNestedReplacementGroup(item) {
     const parent =
       item && item.parentElement && item.parentElement.closest('[role="group"][aria-label]');
@@ -349,10 +309,7 @@
     return !!findPreferenceRadiogroup();
   }
 
-  /**
-   * True when Instacart's cart-row control already says refund (setting applied).
-   * Used to know we can dismiss the modal even if Save isn't visible.
-   */
+  /** True when the cart row already shows refund. */
   function itemAlreadyRefund(item) {
     if (!item) return false;
     const candidates = item.querySelectorAll('button, a, [role="button"]');
@@ -374,7 +331,7 @@
     return false;
   }
 
-  /** Stable product key for storage — aria-label on the role="group" item. */
+  /** Product name from the row's aria-label. */
   function productKey(item) {
     return (item.getAttribute('aria-label') || '').trim();
   }
@@ -419,10 +376,7 @@
     );
   }
 
-  /**
-   * Find option labels via TEXT NODES first (more reliable than element
-   * textContent when the label and description share a parent).
-   */
+  /** Find option labels via text nodes, then aria-label. */
   function findLabelElement(roots, patterns) {
     let best = null;
     let bestScore = Infinity;
@@ -430,7 +384,7 @@
     for (const root of roots) {
       if (!root) continue;
 
-      // Pass 1: text nodes — best for exact "Refund this item" labels.
+      // Text nodes first.
       const doc = root.ownerDocument || document;
       try {
         const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -455,7 +409,7 @@
         /* ignore walker errors on detached nodes */
       }
 
-      // Pass 2: elements (covers aria-label-only controls).
+      // Elements / aria-label.
       if (!root.querySelectorAll) continue;
       try {
         const walkerEl = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
@@ -486,11 +440,7 @@
     return best;
   }
 
-  /**
-   * From a text label node, find the row Instacart actually expects clicks on.
-   * Keep the target SMALL — walking up into the whole milk carousel container
-   * makes the refund click miss / hit the wrong control.
-   */
+  /** Click target for an option label. Stay on the small row, not the whole modal. */
   function findClickableOptionRow(labelEl) {
     if (!labelEl) return null;
 
@@ -504,7 +454,7 @@
       }
 
       const t = normalizeText(cur.textContent);
-      // Refund row = title + short description. Anything huge is the modal/carousel.
+      // Huge nodes are the modal/carousel, not the option row.
       if (t.length > 160) break;
 
       if (
@@ -562,10 +512,9 @@
   }
 
   /**
-   * Pointer/mouse sequence for in-modal cards (not the cart-row submit).
-   * Register preventDefault on submit *before* dispatch — after is a no-op.
-   * Never dispatch at (0,0) or off-screen — Instacart treats that as
-   * "click outside the cart" and closes the drawer.
+   * Pointer sequence for in-modal cards.
+   * preventDefault on submit must be registered before dispatch.
+   * Skip 0,0 / off-screen coords — Instacart treats those as outside the cart.
    */
   function simulateUserClick(el, clickOpts) {
     if (!el) return false;
@@ -648,12 +597,9 @@
   }
 
   /**
-   * Open Instacart's Replacement preference from a *user click* on our menu.
-   * Must run in the same turn as that click (no await before this) or Chrome
-   * drops user-activation and the cart drawer treats it as dismiss.
-   *
-   * type=submit + untrusted click submits the cart form. Flip to type=button
-   * for the activation, keep preventDefault on, then restore.
+   * Open Replacement preference in the same turn as the user's click.
+   * Cart-row controls are type=submit; flip to button for this click so
+   * the cart form doesn't submit.
    */
   function activateNativeSubControl(el) {
     if (!el) return false;
@@ -734,11 +680,7 @@
     return true;
   }
 
-  /**
-   * Scroll the control on-screen, then click the actual hit-target at its
-   * center. Off-screen radios/Save (tall milk carousel) otherwise get a
-   * synthetic click that never reaches Instacart's handler.
-   */
+  /** Click a visible control. Off-screen radios/Save don't receive the hit. */
   async function clickVisible(el) {
     if (!el) return false;
     if (!clickPointFor(el)) {
@@ -750,9 +692,8 @@
   }
 
   /**
-   * How July's refund click worked: HTMLElement.click() on the option node.
-   * No pointerdown / clientX / clientY — those are what Instacart uses to
-   * decide "outside the cart" when refund sits below the fold.
+   * Native .click() on the option. Pointer events with client coords
+   * look like an outside-cart click when the row is below the fold.
    */
   function clickOptionNode(el) {
     if (!el) return false;
@@ -786,13 +727,8 @@
   }
 
   /**
-   * VERIFIED (2026-08 DevTools): options live in
-   *   [role="radiogroup"][aria-label="Select"]
-   *     > div  (Replace with best match)
-   *     > div  (Replace with specific item)
-   *     > div  (Refund, don't replace)  ← click this, ~64px tall
-   *         [data-testid="row-base"]
-   * CSS class hashes (e-d76945) are unstable — do not use them.
+   * Preference options: [role="radiogroup"][aria-label="Select"] > div,
+   * each with [data-testid="row-base"]. Don't use CSS hashes.
    */
   function findPreferenceRadiogroup() {
     const seen = new Set();
@@ -908,9 +844,8 @@
   }
 
   /**
-   * Save lives in the replacement-preference modal, which is often nested
-   * inside the cart drawer (role=dialog aria-label=Cart). Do NOT skip cart
-   * items here — that was why Tide showed "Save was not visible".
+   * Save is in the preference modal, often nested inside the cart dialog.
+   * Don't skip cart-scoped buttons or Save goes missing.
    */
   function findVisibleSaveButton(roots) {
     const seen = new Set();
@@ -975,11 +910,7 @@
     }
   }
 
-  /**
-   * VERIFIED: the "IF OUT OF STOCK..." dialog has a green primary "Save"
-   * button. Selecting a radio alone does NOT persist — Save must be clicked.
-   * Prefer an enabled Save (Instacart may disable it until a radio changes).
-   */
+  /** Preference modal Save. Radio change alone does not persist. */
   function findSaveButton(roots) {
     let exactEnabled = null;
     let exactDisabled = null;
@@ -1012,7 +943,7 @@
     return exactEnabled || exactDisabled || fuzzy;
   }
 
-  /** Scroll every overflow ancestor so Save is visible (milk modal is tall). */
+  /** Scroll overflow ancestors so Save is on-screen. */
   function scrollSaveIntoView(saveBtn) {
     if (!saveBtn) return;
     let cur = saveBtn.parentElement;
@@ -1069,27 +1000,23 @@
     return true;
   }
 
-  /** Cart row no longer on best-match (refund or other setting applied). */
+  /** Cart row is no longer on best-match. */
   function itemNoLongerBestMatch(item) {
     return !findSubButton(item) || itemAlreadyRefund(item);
   }
 
-  /** True if this node looks like the cart drawer, not the sub preferences modal. */
+  /** Cart drawer dialog (not the preference modal). */
   function isCartDrawerDialog(el) {
     if (!el) return false;
     const aria = normalizeText(el.getAttribute('aria-label') || '');
-    // VERIFIED false positive from console: <div role="dialog" aria-label="Cart">
+    // Cart drawer is also role="dialog".
     if (aria === 'cart') return true;
     if (aria.endsWith(' cart')) return true;
     if (aria.includes('personal') && aria.includes('cart')) return true;
     return false;
   }
 
-  /**
-   * Distinctive tokens from a product aria-label, used to make sure the
-   * open "IF OUT OF STOCK..." modal belongs to THIS cart row — not a stale
-   * leftover from milk (or any previous item).
-   */
+  /** Tokens from a product name, to match the open preference modal to this row. */
   function productMatchTokens(productName) {
     const stop = new Set([
       'with', 'from', 'the', 'and', 'for', 'organic', 'filtered', 'fresh',
@@ -1106,8 +1033,7 @@
     const tokens = productMatchTokens(productName);
     if (!tokens.length) return true;
     const hits = tokens.filter((t) => text.includes(t));
-    // Soft match: 1 strong token is enough when names reorder
-    // ("Pepper Red Bell" vs "Red Bell Pepper").
+    // One strong token is enough when word order differs.
     if (hits.length >= 1 && tokens.length <= 2) return true;
     if (tokens.length >= 2) return hits.length >= Math.min(2, tokens.length);
     return hits.length >= 1;
@@ -1136,15 +1062,12 @@
     }
   }
 
-  /** Cart-row controls live in role=group; the out-of-stock modal usually does not. */
+  /** Cart-row controls live in role=group. */
   function isInsideCartItem(el) {
     return !!(el && el.closest && el.closest('[role="group"][aria-label]'));
   }
 
-  /**
-   * True when `el` sits in the out-of-stock overlay, not merely in the cart
-   * drawer that happens to contain a leftover "Refund this item" row.
-   */
+  /** True when el is in the preference overlay, not just the cart drawer. */
   function isInOutOfStockUi(el) {
     let cur = el;
     for (let i = 0; i < 16 && cur && cur !== document.body; i++) {
@@ -1170,10 +1093,7 @@
     return !!findVisibleModalText(SUB_MODAL_TITLE_PHRASES, 40);
   }
 
-  /**
-   * Smallest *visible* element whose text matches a phrase, skipping cart-row
-   * copies (e.g. an already-refunded item's "Refund this item" button).
-   */
+  /** Smallest visible node matching a phrase, skipping cart-row copies. */
   function findVisibleModalText(phrases, maxLen) {
     const needles = (phrases || []).map(normalizeText).filter(Boolean);
     if (!needles.length) return null;
@@ -1212,9 +1132,8 @@
   }
 
   /**
-   * Climb from a title (e.g. "Refund, don't replace") to its card, but STOP
-   * before the parent also contains another option or Save. Clicking that
-   * bigger node hits Best match / the green Save instead of refund.
+   * Climb from an option title to its card. Stop before the parent also
+   * contains another option or Save.
    */
   function optionCardFromLabel(labelEl, forbiddenPhrases) {
     if (!labelEl) return null;
@@ -1239,7 +1158,7 @@
     return best;
   }
 
-  /** Scroll the preference list only — never the cart drawer (that dismisses it). */
+  /** Scroll the preference list, not the cart drawer. */
   function scrollOverflowParentToShow(el) {
     if (!el) return;
     let cur = el.parentElement;
@@ -1333,13 +1252,8 @@
   }
 
   /**
-   * Locate the "IF OUT OF STOCK..." modal root.
-   *
-   * IMPORTANT (verified via console): the cart drawer is ALSO role="dialog"
-   * with aria-label="Cart". Matching only on "best match" wrongly targets it.
-   *
-   * ALSO: Instacart may leave a previous item's modal in the DOM (or reuse a
-   * portal that still shows milk). Always prefer roots that match productName.
+   * Preference modal root. The cart drawer is also role="dialog";
+   * require refund/specific copy and prefer a match on productName.
    */
   function findSubDialogRoots(productName) {
     const roots = [];
@@ -1364,8 +1278,7 @@
 
     if (roots.length) return roots;
 
-    // Portal / non-dialog overlay: find "Refund this item" text, walk up.
-    // If productName is set, only accept containers that also mention it.
+    // Portal overlay: walk up from refund copy.
     const refundLabel = findLabelElement([document.body], REFUND_OPTION_PHRASES);
     if (refundLabel && refundLabel.el) {
       let cur = refundLabel.el;
@@ -1388,12 +1301,11 @@
       }
     }
 
-    // Never fall back to document.body when we have a productName — that is
-    // what caused "glitching back to milk" while editing another item.
+    // Don't fall back to document.body when we know the product.
     return roots;
   }
 
-  /** Poll until a sub-dialog for this product is present. */
+  /** Wait for this product's preference modal. */
   async function waitForSubDialog(timeoutMs, productName) {
     const deadline = Date.now() + (timeoutMs || 4000);
     let any = [];
@@ -1401,14 +1313,14 @@
       const matched = findSubDialogRoots(productName);
       if (matched.length) return matched;
       any = findSubDialogRoots(null);
-      // Last 1.5s: accept the visible sub-modal even if product-name matching failed.
+      // Last 1.5s: accept a visible modal even if the product name didn't match.
       if (any.length && Date.now() > deadline - 1500) return any;
       await wait(100);
     }
     return any;
   }
 
-  /** Wait until leftover modals are gone (or timed out). */
+  /** Wait until leftover modals are gone. */
   async function waitUntilNoSubDialog(timeoutMs) {
     const deadline = Date.now() + (timeoutMs || 1500);
     while (Date.now() < deadline) {
@@ -1418,10 +1330,7 @@
     return !hasOpenSubModal();
   }
 
-  /**
-   * Close only the replacement-preference overlay by its own X.
-   * Never send Escape — Instacart treats Escape as "close the cart sidebar".
-   */
+  /** Close the preference overlay via its X. Don't send Escape (that closes the cart). */
   function dismissSubDialog() {
     const heading = findVisibleModalText(SUB_MODAL_TITLE_PHRASES, 40);
     if (!heading) {
@@ -1469,13 +1378,13 @@
       scheduleScan();
       return { ok: true, mode: 'native-option-saved', detail };
     }
-    // Do not Escape. Save should close the preference modal; Escape closes the cart.
+    // Save closes the modal. Escape closes the cart.
     await wait(200);
     scheduleScan();
     return { ok: true, mode: 'native-option-saved', detail };
   }
 
-  /** True if a refund / option row looks selected after our click. */
+  /** Whether an option row looks selected. */
   function optionRowLooksSelected(row) {
     if (!row) return false;
     if (row.matches && row.matches('input[type="radio"]') && row.checked) return true;
@@ -1489,7 +1398,7 @@
     return false;
   }
 
-  /** Instacart's selected card uses a thicker border more than native radios. */
+  /** Selected card uses a thicker border. */
   function optionCardLooksSelected(el) {
     if (!el) return false;
     if (optionRowLooksSelected(el)) return true;
@@ -1521,9 +1430,7 @@
     return optionCardLooksSelected(findClickableOptionRow(el) || el);
   }
 
-  /**
-   * Wait for option label, click it, retry until it looks selected.
-   */
+  /** Click an option and retry until it looks selected. */
   async function selectDialogOption(searchRoots, preferredLabels) {
     let match = null;
     const roots = (searchRoots && searchRoots.length ? searchRoots : []).slice();
@@ -1569,14 +1476,12 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Instacart interaction probe
+  // Instacart preference flow
   // ---------------------------------------------------------------------------
 
   /**
-   * Clicks Instacart's own substitution button, selects an option in the
-   * "IF OUT OF STOCK..." dialog, then clicks Save.
-   *
-   * Runs serialized (interactionChain) so milk's Save cannot overlap pepper.
+   * Open Instacart's substitution control, pick an option, click Save.
+   * Serialized so two items can't overlap.
    */
   async function interactWithInstacartSub(item, intent, options) {
     const run = () => interactWithInstacartSubUnlocked(item, intent, options || {});
@@ -1613,7 +1518,7 @@
     hidePopoverForNativeUi();
 
     if (!alreadyOpened && subButton) {
-      // Fallback only — the popover handler should have opened in the user-gesture turn.
+      // Fallback if the popover didn't already open the modal.
       log('Opening Instacart substitution control after await (weaker):', productName);
       activateNativeSubControl(subButton);
     } else {
@@ -1778,7 +1683,7 @@
       for (let i = 0; i < 15; i++) {
         const any = findSubDialogRoots(null);
         if (any.length === 1) {
-          // Reject if it clearly belongs to a *different* cart product.
+          // Skip a modal that belongs to a different product.
           const otherHit = Array.from(
             document.querySelectorAll('[role="group"][aria-label]')
           ).some((g) => {
@@ -1838,7 +1743,7 @@
       };
     }
 
-    // Give React a beat to enable Save / update radio UI.
+    // Wait for Save to enable.
     await wait(350);
 
     if (intent === 'specific') {
@@ -1854,9 +1759,7 @@
       };
     }
 
-    // dont-replace path — milk is the hard case: tall carousel pushes Save
-    // below the fold. Never Escape until the cart row confirms refund, or we
-    // cancel the selection and it looks like "milk won't refund".
+    // Tall carousels push Save below the fold. Don't Escape until the row updates.
     const saveBtn = await waitForEnabledSave(searchRoots, match.el, 3000);
     if (!saveBtn) {
       warn('No Save button found after selecting refund — leaving modal open.');
@@ -1881,7 +1784,7 @@
         );
       }
 
-      // Dialog closed without cart update yet — give SPA a moment.
+      // Dialog closed; wait for the cart row to update.
       if (!findSubDialogRoots(null).length) {
         await wait(400);
         if (itemNoLongerBestMatch(item)) {
@@ -1893,7 +1796,7 @@
         break;
       }
 
-      // Still open + still best-match: retry Save (common for milk).
+      // Still open and still best-match: retry Save.
       if (i === 6 || i === 12 || i === 18) {
         log('Cart still on best match — retrying Save');
         const again =
@@ -1911,7 +1814,7 @@
       );
     }
 
-    // Do NOT Escape — that cancels an unsaved refund on milk.
+    // Don't Escape; that cancels an unsaved change.
     warn(
       'Refund selected but cart row still shows best match — leaving modal open for manual Save.'
     );
@@ -1924,16 +1827,12 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Personal notes (local only — NOT sent to Instacart / shopper)
+  // Personal notes (this browser only)
   // ---------------------------------------------------------------------------
 
   /**
-   * LIMITATION (intentional honesty):
-   * Instacart does not expose a public API for "please get THIS specific
-   * backup" from an extension, and we may not find a native picker to hook.
-   * Notes saved here live only in chrome.storage.local on THIS browser
-   * profile. They are a personal reminder layer for the customer — they are
-   * NOT transmitted to the shopper or Instacart. The UI labels them as such.
+   * Notes live in chrome.storage.local on this profile only.
+   * They are not sent to Instacart or the shopper.
    */
   function loadNotes() {
     if (!chrome.storage || !chrome.storage.local) {
@@ -1969,7 +1868,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Badge + note badge injection (idempotent under MutationObserver re-scans)
+  // Badges
   // ---------------------------------------------------------------------------
 
   function bindBadgeOpen(badge) {
@@ -2010,7 +1909,6 @@
   function ensureBadge(item, productName) {
     let badge = item.querySelector(':scope > .' + BADGE_CLASS);
     if (!badge) {
-      // Use a <button> so it's keyboard-accessible and clearly interactive.
       badge = document.createElement('button');
       badge.type = 'button';
       badge.className = BADGE_CLASS;
@@ -2093,11 +1991,7 @@
     if (btn) btn.classList.remove(PULSE_CLASS);
   }
 
-  /**
-   * Do not script-click Instacart. Chrome marks those events untrusted;
-   * on the new cart drawer that submits/dismisses the sidebar instead of
-   * opening Replacement preference. Point at the real control instead.
-   */
+  /** Highlight Instacart's control instead of issuing an untrusted click. */
   function guideToNativePreference(item, kind) {
     closePopover();
     if (!item) return;
@@ -2205,7 +2099,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Custom popover UI (ours — not Instacart's)
+  // Extension menu
   // ---------------------------------------------------------------------------
 
   let popoverOpenedAt = 0;
@@ -2240,9 +2134,7 @@
       : { top: 0, left: 0 };
     const pad = 8;
     const width = Math.min(320, window.innerWidth - pad * 2);
-    // Cart drawers often use transform, which turns position:fixed into
-    // "absolute vs the drawer" while we were feeding viewport coords —
-    // the menu rendered off-screen. Use host-relative absolute instead.
+    // Drawer transform makes position:fixed relative to the drawer.
     let top = Math.round(rect.bottom - hostRect.top + 6);
     let left = Math.round(rect.left - hostRect.left);
     if (left + width > hostRect.width - pad && hostRect.width > 0) {
@@ -2284,7 +2176,7 @@
     return null;
   }
 
-  /** Temporarily hide our popover so it doesn't cover Instacart's modal. */
+  /** Hide our menu while Instacart's modal is up. */
   function hidePopoverForNativeUi() {
     const pop = document.getElementById(POPOVER_ID);
     if (!pop) return null;
@@ -2311,13 +2203,7 @@
     status.hidden = !message;
   }
 
-  /**
-   * Opens our popover anchored near the badge for a given cart item.
-   * Options:
-   *  1. Best match (current) — closes only; already the live setting
-   *  2. Don't replace — drives Instacart's native control via probe
-   *  3. Specific backup — tries native picker; else local note field
-   */
+  /** Open the extension menu next to a badge. */
   function openPopover(item, anchorEl) {
     closePopover();
 
@@ -2336,7 +2222,7 @@
     heading.textContent = productName || 'Substitution options';
     popover.appendChild(heading);
 
-    // --- Option 1: keep best match ---
+    // Best match
     const btnBest = document.createElement('button');
     btnBest.type = 'button';
     btnBest.className = 'sub-spotlight-popover-option';
@@ -2377,7 +2263,7 @@
     });
     popover.appendChild(btnBest);
 
-    // --- Option 2: don't replace (native) ---
+    // Don't replace
     const btnDont = document.createElement('button');
     btnDont.type = 'button';
     btnDont.className = 'sub-spotlight-popover-option';
@@ -2390,7 +2276,7 @@
       const liveItem = resolveActiveItem() || item;
       const subButton = findCartRowSubControl(liveItem);
       setPopoverStatus(popover, 'Opening Instacart’s replacement preference…', 'info');
-      // Same turn as the user's click — do not await before this.
+      // Same turn as the user click (no await before this).
       if (subButton) activateNativeSubControl(subButton);
       void (async () => {
         for (let i = 0; i < 25; i++) {
@@ -2414,7 +2300,7 @@
     });
     popover.appendChild(btnDont);
 
-    // --- Option 3: specific backup ---
+    // Specific backup
     const specificWrap = document.createElement('div');
     specificWrap.className = 'sub-spotlight-popover-specific';
 
@@ -2520,8 +2406,7 @@
 
     popover.appendChild(specificWrap);
 
-    // Inside the cart drawer (not the page) so Instacart does not treat the
-    // click as "outside the cart". position:fixed so the item row cannot clip it.
+    // Mount in the cart drawer so the click isn't treated as outside.
     const host = hostForPopover(item);
     host.appendChild(popover);
     placePopoverNearAnchor(popover, anchorEl);
@@ -2530,7 +2415,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Scan (MutationObserver-driven)
+  // Scan
   // ---------------------------------------------------------------------------
 
   function findCartDrawer() {
@@ -2563,9 +2448,7 @@
   }
 
   function scan() {
-    // Do not inject/remove badges while Instacart's replacement modal is
-    // open — that DOM mutation fights React and blocks switching back to
-    // best match from Instacart's own UI (Tide, Heinz, etc.).
+    // Don't mutate the cart while the preference modal is open.
     if (preferenceModalOpen()) {
       return;
     }
@@ -2604,7 +2487,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Global listeners (event delegation — survives SPA re-renders)
+  // Listeners
   // ---------------------------------------------------------------------------
 
   function isOurUiTarget(target) {
@@ -2626,11 +2509,7 @@
     );
   }
 
-  /**
-   * Cart rows often put an invisible overlay on top of our badges, so
-   * event.target is Instacart's node even though the box is what you
-   * clicked. Hit-test the stack and open on pointerdown.
-   */
+  /** Hit-test through cart overlays so badge clicks still land on our UI. */
   function ourUiFromPoint(x, y) {
     let stack = [];
     try {
@@ -2676,7 +2555,7 @@
       );
     if (!hit) return;
 
-    // Let popover option buttons receive the real event.
+    // Let menu buttons receive the event.
     if (hit.id === POPOVER_ID || (hit.closest && hit.closest('#' + POPOVER_ID))) {
       return;
     }
@@ -2719,8 +2598,7 @@
         return;
       }
 
-      // Instacart's preference rows — do not close our menu in the same
-      // turn (removing DOM from the cart item resets their radiogroup).
+      // Don't close our menu on Instacart preference-row clicks.
       if (target.closest('[role="radiogroup"], [data-testid="row-base"]')) {
         if (document.getElementById(POPOVER_ID) && Date.now() - popoverOpenedAt > 400) {
           closePopover();
@@ -2770,10 +2648,7 @@
     true
   );
 
-  // Instacart's cart is a single-page app — content loads/re-renders
-  // dynamically, so we watch for DOM changes instead of scanning once.
-  // Ignore mutations we ourselves cause inside the popover / panel to
-  // reduce scan thrash (still debounced either way).
+  // Re-scan on cart DOM changes. Ignore our own menu/panel mutations.
   const observer = new MutationObserver((mutations) => {
     const relevant = mutations.some((m) => {
       const t = m.target;

@@ -1,5 +1,4 @@
-/* Auto-substitute badge. !important so Instacart's cart/search button
-   styles cannot reposition or recolor these. */
+/* Badge. !important beats Instacart's button styles. */
 button.sub-spotlight-badge,
 .sub-spotlight-badge {
   all: unset;
@@ -73,7 +72,7 @@ button.sub-spotlight-badge.sub-spotlight-badge-specific:focus-visible,
   outline-offset: 1px;
 }
 
-/* Local-only personal note (NOT sent to Instacart / shopper) */
+/* Local note */
 .sub-spotlight-note-badge {
   display: block;
   position: relative;
@@ -106,7 +105,7 @@ button.sub-spotlight-badge.sub-spotlight-badge-specific:focus-visible,
   font-style: italic;
 }
 
-/* Floating counter panel (existing) */
+/* Count panel */
 #sub-spotlight-panel {
   position: fixed;
   top: 80px;
@@ -165,9 +164,7 @@ button.sub-spotlight-badge.sub-spotlight-badge-specific:focus-visible,
   background: #1565c0;
 }
 
-/* Extension menu — parked in the cart drawer with host-relative absolute
-   coords (drawers use transform, which breaks viewport position:fixed).
-   Do not attach to document.body (that closes the cart). */
+/* Menu: absolute inside the cart drawer (body would close the cart). */
 #sub-spotlight-popover {
   position: absolute;
   z-index: 2147483646;
