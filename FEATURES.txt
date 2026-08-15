@@ -1,0 +1,80 @@
+Instacart Substitution Spotlight — features + LinkedIn notes
+============================================================
+
+Unofficial personal project. Not affiliated with, endorsed by, or built with
+Instacart. Chrome extension (Manifest V3), vanilla JS, no bundler, no backend.
+
+What it is
+----------
+Instacart often defaults cart items to "Replace with best match." If something
+is out of stock, the shopper picks a substitute. Fine for paper towels. Not
+fine for allergies, a diet, or a brand you actually need.
+
+The setting is easy to miss. This extension makes it visible and lets you
+change Instacart's real setting from a badge on the cart row.
+
+Features
+--------
+- Yellow box: item is on auto "best match" / similar-item substitution.
+- Green box: item is set to "Refund, don't replace."
+- Blue box: a specific backup was chosen (Instacart's live copy is
+  "Replacement chosen").
+- Floating counter: how many items are still on best-match, plus a color key.
+- Click a box to open a small menu (Best match / Don't replace / Specific).
+- Don't replace and Best match drive Instacart's own Replacement preference
+  dialog and Save, so the change actually sticks — not a fake overlay.
+- Specific backup opens Instacart's native picker so you can choose a product.
+- Optional local-only personal note (chrome.storage.local). The UI says it is
+  not sent to the shopper.
+- Works on instacart.com and instacart.ca cart drawers.
+- One permission: storage. No network calls, no analytics, no account.
+
+Engineering (the part worth posting)
+------------------------------------
+The UI is small. The hard part is automating a production React SPA you do
+not control.
+
+- Instacart's CSS class hashes change every deploy, so nothing is selected by
+  class. The extension anchors to the accessibility tree (role, aria-label)
+  and to visible copy ("Refund, don't replace", "Replacement chosen", etc.).
+- The cart is a slide-out dialog. Putting a menu on document.body looks like
+  an outside click and closes the drawer. The menu has to live inside the
+  cart.
+- Cart-row controls are often type=submit. An untrusted script click submits
+  the cart form instead of opening Replacement preference. Clicks have to
+  stay in the same user-gesture turn.
+- Copy and layout changed between 2024 and 2026 (best match vs similar item,
+  "Refund this item" vs "Refund, don't replace", "Replacement chosen").
+  Matchers follow live text, not hardcoded CSS.
+- A MutationObserver re-scans the SPA. Scanning pauses while Instacart's
+  preference modal is open so injecting badges does not reset their React
+  tree (that bug blocked switching Tide / Heinz back to best match).
+
+LinkedIn screenshot checklist
+-----------------------------
+- Blur or crop any address, postal code, phone number, or full name.
+- The project is a private repo. Do not paste a public GitHub link unless
+  you intentionally make it public.
+- Say it is unofficial and not affiliated with Instacart.
+
+Possible post angle
+-------------------
+I kept getting groceries I didn't order.
+
+Instacart defaults many cart items to "Replace with best match." If your
+item is out of stock, the shopper picks something similar. Reasonable for
+paper towels. A problem if you have allergies, a diet, or a brand you
+need.
+
+So I built a Chrome extension that:
+
+- flags every cart item silently set to auto-substitute (yellow / green / blue)
+- shows a running count
+- lets you change Instacart's real setting in one click from the badge
+
+The interesting part wasn't the UI. It was making it work against a
+production React app I don't control: hashed CSS, a cart drawer that
+treats outside clicks as "close," submit buttons that dismiss the sidebar,
+and copy that changed out from under the selectors.
+
+Vanilla JS, Manifest V3, one permission (storage), no backend.

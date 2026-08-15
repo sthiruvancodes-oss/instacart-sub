@@ -1,32 +1,84 @@
-/* Auto-substitute badge (existing) — now a clickable <button> */
+/* Auto-substitute badge. !important so Instacart's cart/search button
+   styles cannot reposition or recolor these. */
+button.sub-spotlight-badge,
 .sub-spotlight-badge {
-  display: inline-block;
-  background: #fff3cd;
-  color: #7a5b00;
-  border: 1px solid #ffca28;
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 12px;
-  font-weight: 600;
-  font-family: sans-serif;
-  margin-bottom: 4px;
-  cursor: pointer;
-  line-height: 1.4;
-  box-sizing: border-box;
-  max-width: 100%;
-  text-align: left;
+  all: unset;
+  display: inline-block !important;
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: auto !important;
+  height: auto !important;
+  z-index: 3;
+  pointer-events: auto !important;
+  background: #fff3cd !important;
+  color: #7a5b00 !important;
+  border: 1px solid #ffca28 !important;
+  border-left: 8px solid #e6a800 !important;
+  border-radius: 6px !important;
+  padding: 2px 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-family: sans-serif !important;
+  margin: 0 0 4px 0 !important;
+  cursor: pointer !important;
+  line-height: 1.4 !important;
+  box-sizing: border-box !important;
+  max-width: 100% !important;
+  text-align: left !important;
+  box-shadow: none !important;
 }
 
 .sub-spotlight-badge:hover,
 .sub-spotlight-badge:focus-visible {
-  background: #ffe8a3;
-  outline: 2px solid #e6a800;
+  background: #ffe8a3 !important;
+  outline: 2px solid #e6a800 !important;
+  outline-offset: 1px;
+}
+
+button.sub-spotlight-badge.sub-spotlight-badge-refund,
+.sub-spotlight-badge.sub-spotlight-badge-refund {
+  background: #e8f5e9 !important;
+  color: #1b5e20 !important;
+  border-color: #81c784 !important;
+  border-left-color: #2e7d32 !important;
+}
+
+button.sub-spotlight-badge.sub-spotlight-badge-refund:hover,
+button.sub-spotlight-badge.sub-spotlight-badge-refund:focus-visible,
+.sub-spotlight-badge-refund:hover,
+.sub-spotlight-badge-refund:focus-visible {
+  background: #c8e6c9 !important;
+  outline-color: #2e7d32 !important;
+}
+
+button.sub-spotlight-badge.sub-spotlight-badge-specific,
+.sub-spotlight-badge.sub-spotlight-badge-specific {
+  background: #e3f2fd !important;
+  color: #0d47a1 !important;
+  border-color: #64b5f6 !important;
+  border-left-color: #1565c0 !important;
+}
+
+button.sub-spotlight-badge.sub-spotlight-badge-specific:hover,
+button.sub-spotlight-badge.sub-spotlight-badge-specific:focus-visible,
+.sub-spotlight-badge-specific:hover,
+.sub-spotlight-badge-specific:focus-visible {
+  background: #bbdefb !important;
+  outline: 2px solid #1565c0 !important;
   outline-offset: 1px;
 }
 
 /* Local-only personal note (NOT sent to Instacart / shopper) */
 .sub-spotlight-note-badge {
   display: block;
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
   background: #e8f4fc;
   color: #0b4f6c;
   border: 1px solid #7eb8d4;
@@ -77,11 +129,50 @@
   max-width: fit-content;
 }
 
-/* Extension popover (ours — not Instacart's UI) */
+.sub-spotlight-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.95;
+}
+
+.sub-spotlight-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sub-spotlight-legend-box {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.sub-spotlight-legend-box-best {
+  background: #e6a800;
+}
+
+.sub-spotlight-legend-box-refund {
+  background: #2e7d32;
+}
+
+.sub-spotlight-legend-box-specific {
+  background: #1565c0;
+}
+
+/* Extension menu — parked in the cart drawer with host-relative absolute
+   coords (drawers use transform, which breaks viewport position:fixed).
+   Do not attach to document.body (that closes the cart). */
 #sub-spotlight-popover {
-  position: fixed;
-  z-index: 1000000;
+  position: absolute;
+  z-index: 2147483646;
   width: min(320px, calc(100vw - 16px));
+  margin: 4px 0 8px;
   background: #fff;
   color: #1a1a1a;
   border: 1px solid #cfcfcf;
@@ -217,4 +308,23 @@
 .sub-spotlight-popover-status[data-kind='error'] {
   background: #fdecea;
   color: #8a1c1c;
+}
+
+.sub-spotlight-guide {
+  display: block;
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  background: #fff8e1;
+  border: 1px solid #ffca28;
+  border-radius: 6px;
+  color: #7a5b00;
+  font-size: 12px;
+  font-family: sans-serif;
+  line-height: 1.4;
+}
+
+.sub-spotlight-pulse {
+  outline: 3px solid #e6a800 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 4px rgba(230, 168, 0, 0.35) !important;
 }
