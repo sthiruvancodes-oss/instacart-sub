@@ -1,0 +1,220 @@
+/* Auto-substitute badge (existing) — now a clickable <button> */
+.sub-spotlight-badge {
+  display: inline-block;
+  background: #fff3cd;
+  color: #7a5b00;
+  border: 1px solid #ffca28;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: sans-serif;
+  margin-bottom: 4px;
+  cursor: pointer;
+  line-height: 1.4;
+  box-sizing: border-box;
+  max-width: 100%;
+  text-align: left;
+}
+
+.sub-spotlight-badge:hover,
+.sub-spotlight-badge:focus-visible {
+  background: #ffe8a3;
+  outline: 2px solid #e6a800;
+  outline-offset: 1px;
+}
+
+/* Local-only personal note (NOT sent to Instacart / shopper) */
+.sub-spotlight-note-badge {
+  display: block;
+  background: #e8f4fc;
+  color: #0b4f6c;
+  border: 1px solid #7eb8d4;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: sans-serif;
+  margin-bottom: 4px;
+  cursor: pointer;
+  line-height: 1.35;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.sub-spotlight-note-label {
+  font-weight: 600;
+}
+
+.sub-spotlight-note-disclaimer {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+  font-size: 10px;
+  color: #3a6a7e;
+  font-style: italic;
+}
+
+/* Floating counter panel (existing) */
+#sub-spotlight-panel {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  background: #212121;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: sans-serif;
+  z-index: 999999;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  max-width: 220px;
+}
+
+#sub-spotlight-panel.sub-spotlight-collapsed {
+  padding: 8px 10px;
+  font-size: 11px;
+  max-width: fit-content;
+}
+
+/* Extension popover (ours — not Instacart's UI) */
+#sub-spotlight-popover {
+  position: fixed;
+  z-index: 1000000;
+  width: min(320px, calc(100vw - 16px));
+  background: #fff;
+  color: #1a1a1a;
+  border: 1px solid #cfcfcf;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  padding: 10px;
+  font-family: sans-serif;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.sub-spotlight-popover-heading {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  line-height: 1.3;
+  color: #333;
+  max-height: 2.6em;
+  overflow: hidden;
+}
+
+.sub-spotlight-popover-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #f7f7f7;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: #1a1a1a;
+  box-sizing: border-box;
+}
+
+.sub-spotlight-popover-option:hover:not(:disabled),
+.sub-spotlight-popover-option:focus-visible:not(:disabled) {
+  background: #eee;
+  border-color: #bbb;
+  outline: 2px solid #888;
+  outline-offset: 1px;
+}
+
+.sub-spotlight-popover-option:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sub-spotlight-popover-specific {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid #eee;
+}
+
+.sub-spotlight-popover-hint {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #555;
+}
+
+.sub-spotlight-popover-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  margin-bottom: 6px;
+}
+
+.sub-spotlight-popover-input:focus {
+  outline: 2px solid #4a90a4;
+  border-color: #4a90a4;
+}
+
+.sub-spotlight-popover-note-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sub-spotlight-popover-save,
+.sub-spotlight-popover-clear {
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.sub-spotlight-popover-save {
+  background: #0b4f6c;
+  color: #fff;
+  border-color: #0b4f6c;
+}
+
+.sub-spotlight-popover-save:hover {
+  background: #093e55;
+}
+
+.sub-spotlight-popover-clear {
+  background: #fff;
+  color: #444;
+}
+
+.sub-spotlight-popover-clear:hover {
+  background: #f3f3f3;
+}
+
+.sub-spotlight-popover-status {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.sub-spotlight-popover-status[data-kind='info'] {
+  background: #f0f4f8;
+  color: #334;
+}
+
+.sub-spotlight-popover-status[data-kind='ok'] {
+  background: #e6f6ea;
+  color: #1b5e20;
+}
+
+.sub-spotlight-popover-status[data-kind='error'] {
+  background: #fdecea;
+  color: #8a1c1c;
+}
