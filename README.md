@@ -1,7 +1,7 @@
 # Instacart Substitution Spotlight
 
 A Chrome extension (Manifest V3) that surfaces which grocery items are silently
-set to auto-substitute — and lets you change that setting in one click, without
+set to auto-substitute and lets you change that setting in one click, without
 hunting through Instacart's own menus.
 
 > Unofficial personal project. Not affiliated with, endorsed by, or built with
@@ -39,13 +39,13 @@ names (`e-1wuip3z`) that change every deploy. Nothing is selected by class.
 Instead the extension anchors to the accessibility tree and to visible copy:
 
 ```js
-// Every cart item is a labeled group — the stable per-item anchor.
+// Every cart item is a labeled group with a stable per-item anchor.
 const items = document.querySelectorAll('[role="group"][aria-label]');
 ```
 
 **Drive the real control, don't simulate it.** Changing substitution means
 opening Instacart's "If out of stock…" modal, selecting the native radio, and
-clicking their Save — so the change actually reaches their backend.
+clicking their Save, so the change actually reaches their backend.
 
 **Survive re-renders.** The cart is a SPA, so a debounced `MutationObserver`
 re-scans on DOM change. Badge injection is idempotent, and mutations caused by
